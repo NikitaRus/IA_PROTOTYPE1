@@ -24,10 +24,12 @@
 
 #include <iostream>
 
+using namespace std;
+
 int main()
 {
 	
-	*char[12][12] Laberinto = {
+	string Laberinto[12][12] = {
 		{"X", "X", "X", "X", "X", "X", "X", "X", "X", "X", "X", "X"},
 		{"X", "P", "O", "O", "Y", "X", "X", "X", "X", "X", "X", "X"},
 		{"X", "X", "X", "O", "X", "X", "X", "X", "X", "X", "X", "X"},
@@ -44,57 +46,58 @@ int main()
 	
 	int posX = 1;
 	int posY = 1;
-	for(baz = 0; baz < 144; baz++)
+	for(int baz = 0; baz < 144; baz++)
 	{
-  	for(int x = 0; x <= 12; x++)
-  	{
-  	  for(y = 0; y <= 12; y++)
-  	  {
-  
-  	    //LOGICA DE LA IA
-  	    /////////////////////
-  	    if(Laberinto[posX + 1][posY] == "O" && (Laberinto[posX - 1][posY] != "X" && Laberinto[posX][posY + 1] != "X" && Laberinto[posX][posY - 1] != "X"))
-  	    {
-  	      Laberinto[posX][posY] = "O";
-  	      
-  	      posX += 1;
-  	      
-  	      Laberinto[posX][posY] = "P";
-  	    }
-  	    else if(Laberinto[posX - 1][posY] == "O" && (Laberinto[posX + 1][posY] != "X" && Laberinto[posX][posY + 1] != "X" && Laberinto[posX][posY - 1] != "X"))
-  	    {
-  	      Laberinto[posX][posY] = "O";
-  	      
-  	      posX -= 1;
-  	      
-  	      Laberinto[posX][posY] = "P";
-  	    }
-  	    else if(Laberinto[posX][posY + 1] == "O" && (Laberinto[posX - 1][posY] != "X" && Laberinto[posX + 1][posY] != "X" && Laberinto[posX][posY - 1] != "X"))
-  	    {
-  	     Laberinto[posX][posY] = "O";
-  	     
-  	      posY += 1;
-  	      
-  	      Laberinto[posX][posY] = "P";
-  	    }
-  	    else if(Laberinto[posX][posY - 1] == "O" && (Laberinto[posX - 1][posY] != "X" && Laberinto[posX + 1][posY] != "X" && Laberinto[posX][posY + 1] != "X"))
-  	    {
-  	      Laberinto[posX][posY] = "O";
-  	      
-  	      posY -= 1;
-  	      
-  	      Laberinto[posX][posY] = "P";
-  	    }
-  	   
-  	    for(int foo = 1; foo <= 11)
-  	    {
-  	      for(int bar = 1; bar <= 11)
-  	      {
-  	        printf(%d, Laberinto[bar][foo]);
-  	      }
-  	    }
-  	  }
-  	}
+		for(int x = 0; x <= 12; x++)
+		{
+		  for(int y = 0; y <= 12; y++)
+		  {
+
+		    //LOGICA DE LA IA
+		    /////////////////////
+		    if(Laberinto[posX + 1][posY] == "O" && (Laberinto[posX - 1][posY] != "X" && Laberinto[posX][posY + 1] != "X" && Laberinto[posX][posY - 1] != "X"))
+		    {
+		      Laberinto[posX][posY] = "O";
+
+		      posX += 1;
+
+		      Laberinto[posX][posY] = "P";
+		    }
+		    else if(Laberinto[posX - 1][posY] == "O" && (Laberinto[posX + 1][posY] != "X" && Laberinto[posX][posY + 1] != "X" && Laberinto[posX][posY - 1] != "X"))
+		    {
+		      Laberinto[posX][posY] = "O";
+
+		      posX -= 1;
+
+		      Laberinto[posX][posY] = "P";
+		    }
+		    else if(Laberinto[posX][posY + 1] == "O" && (Laberinto[posX - 1][posY] != "X" && Laberinto[posX + 1][posY] != "X" && Laberinto[posX][posY - 1] != "X"))
+		    {
+		     Laberinto[posX][posY] = "O";
+
+		      posY += 1;
+
+		      Laberinto[posX][posY] = "P";
+		    }
+		    else if(Laberinto[posX][posY - 1] == "O" && (Laberinto[posX - 1][posY] != "X" && Laberinto[posX + 1][posY] != "X" && Laberinto[posX][posY + 1] != "X"))
+		    {
+		      Laberinto[posX][posY] = "O";
+
+		      posY -= 1;
+
+		      Laberinto[posX][posY] = "P";
+		    }
+
+		    for(int foo = 1; foo <= 11; foo++)
+		    {
+		      for(int bar = 1; bar <= 11; bar++)
+		      {
+			cout << Laberinto[bar][foo];
+		      }
+			    cout << "\n";
+		    }
+		  }
+		}
 	}
 	
 	
