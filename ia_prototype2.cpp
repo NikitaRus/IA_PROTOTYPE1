@@ -1,5 +1,5 @@
-#include 
-#include 
+#include <vector>
+#include <iostream>
 
 // Define el tamaño del laberinto
 // Para un laberinto de 1M x 1M, se recomienda usar asignación dinámica de memoria
