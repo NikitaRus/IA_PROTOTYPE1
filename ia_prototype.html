@@ -1,0 +1,349 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Agente MAYBE en Laberinto</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        /* Estilos personalizados para el canvas y el agente */
+        body {
+            font-family: 'Inter', sans-serif;
+            background-color: #0d1117; /* Dark background */
+        }
+        .grid-container {
+            display: grid;
+            /* Se establece en 200 columnas para el laberinto grande */
+            grid-template-columns: repeat(200, 1fr); 
+            border: 4px solid #38bdf8;
+            box-shadow: 0 0 20px rgba(56, 189, 248, 0.5);
+            max-width: 480px; /* Ancho fijo para que quepa en pantalla */
+            margin: 20px auto;
+        }
+        .cell {
+            /* Celdas muy pequeñas para 200x200 */
+            width: 2px; 
+            height: 2px; 
+            padding: 0;
+            margin: 0;
+            display: block; /* No necesitamos flex ni texto */
+        }
+        .wall {
+            background-color: #21262d; /* Dark wall */
+        }
+        .path {
+            background-color: #0d1117; /* Open path */
+        }
+        .start {
+            background-color: #10b981; /* Green start */
+        }
+        .end {
+            background-color: #ef4444; /* Red end */
+        }
+        /* Las clases .maybe-path y .agent ya no se usan para animación en tiempo real */
+        .solution-path {
+            background-color: #f97316; /* Orange final solution */
+            /* Efectos visuales ajustados para celdas pequeñas */
+            border-radius: 10%; 
+        }
+
+        /* Eliminamos la animación de pulso que ya no es necesaria */
+    </style>
+</head>
+<body class="p-4 text-white">
+    <div class="max-w-xl mx-auto text-center">
+        <h1 class="text-3xl font-extrabold mb-2 text-sky-400">Agente MAYBE (Optimizado)</h1>
+        <p class="text-lg text-gray-300 mb-4">Resolviendo el laberinto de 255x255 a máxima velocidad.</p>
+        
+        <div id="status" class="mb-4 p-3 bg-gray-800 rounded-lg shadow-md border border-gray-700 text-left">
+            <div class="mb-1">
+                <span class="font-semibold text-sky-300">Estado:</span> <span id="current-status" class="text-gray-200">Esperando...</span>
+            </div>
+            <div>
+                <span class="font-semibold text-sky-300">Pasos:</span> <span id="step-counter" class="text-yellow-400">0</span>
+            </div>
+        </div>
+
+        <div class="mb-4 flex flex-col sm:flex-row justify-center items-center gap-3">
+            <label for="logic-selector" class="text-sm font-semibold text-gray-400">Seleccionar Lógica MAYBE:</label>
+            <select id="logic-selector" onchange="setCurrentLogic(this.value)" class="p-2 rounded-lg bg-gray-700 text-white border border-gray-600 focus:ring-sky-500 focus:border-sky-500">
+                <option value="distance" selected>V2: Distancia (Heurística)</option>
+                <option value="openness">V1: Apertura (DFS Greedy)</option>
+            </select>
+        </div>
+
+        <div id="maze-grid" class="grid-container mx-auto">
+            <!-- Maze cells will be injected here -->
+        </div>
+
+        <div class="mt-6 flex flex-wrap justify-center gap-4">
+            <button onclick="generateMaze(ROWS, COLS)" class="bg-indigo-600 hover:bg-indigo-700 text-white font-semibold py-2 px-4 rounded-lg shadow-lg transition duration-300 ease-in-out transform hover:scale-105">
+                Generar Nuevo Laberinto
+            </button>
+            <button id="solve-button" onclick="solveMaze()" class="bg-teal-600 hover:bg-teal-700 text-white font-semibold py-2 px-4 rounded-lg shadow-lg transition duration-300 ease-in-out transform hover:scale-105">
+                Iniciar Agente MAYBE (Veloz)
+            </button>
+        </div>
+    </div>
+
+    <script>
+        // --- Constantes y Variables Globales ---
+        const ROWS = 255; 
+        const COLS = 255; 
+        const GRID_ID = 'maze-grid';
+        const STATUS_ID = 'current-status';
+        const STEP_COUNTER_ID = 'step-counter'; 
+        
+        let maze = [];
+        let startPos = { row: 1, col: 1 };
+        let endPos = { row: ROWS - 2, col: 1 }; // Esquina inferior izquierda (en el mismo eje vertical)
+        let solving = false;
+        let currentLogic = 'distance'; 
+
+        /**
+         * Actualiza la lógica seleccionada.
+         */
+        function setCurrentLogic(logicName) {
+            currentLogic = logicName;
+            document.getElementById(STATUS_ID).textContent = `Lógica cambiada a: ${logicName === 'distance' ? 'Distancia' : 'Apertura'}. Genere o resuelva de nuevo.`;
+        }
+
+        /**
+         * Calcula la distancia de Manhattan.
+         */
+        function manhattanDistance(pos1, pos2) {
+            return Math.abs(pos1.row - pos2.row) + Math.abs(pos1.col - pos2.col);
+        }
+
+        /**
+         * Calcula la cantidad de caminos abiertos alrededor de una celda.
+         */
+        function calculateOpenPaths(r, c, grid) {
+            const neighbors = [
+                { dr: 0, dc: 1 }, { dr: 0, dc: -1 }, 
+                { dr: 1, dc: 0 }, { dr: -1, dc: 0 }
+            ];
+            let openPaths = 0;
+            
+            for (const n of neighbors) {
+                const nr = r + n.dr;
+                const nc = c + n.dc;
+                // Contar caminos (0)
+                if (nr >= 0 && nr < ROWS && nc >= 0 && nc < COLS && grid[nr][nc] === 0) {
+                    openPaths++;
+                }
+            }
+            return openPaths;
+        }
+
+        // --- Inicialización del Laberinto ---
+
+        /**
+         * Genera un nuevo laberinto que garantiza una solución (Backtracking Recursivo).
+         */
+        function generateMaze(rows, cols) {
+            document.getElementById(STATUS_ID).textContent = "Generando laberinto 255x255...";
+            
+            // Inicialización de la cuadrícula
+            maze = [];
+            for (let r = 0; r < rows; r++) {
+                maze[r] = new Array(cols).fill(1); // 1 = Muro
+            }
+            
+            startPos = { row: 1, col: 1 };
+            endPos = { row: rows - 2, col: 1 }; 
+
+            function carvePath(r, c) {
+                maze[r][c] = 0; 
+                const directions = [
+                    { dr: 0, dc: 2 }, { dr: 0, dc: -2 }, 
+                    { dr: 2, dc: 0 }, { dr: -2, dc: 0 } 
+                ].sort(() => Math.random() - 0.5);
+
+                for (const dir of directions) {
+                    const nr2 = r + dir.dr; 
+                    const nc2 = c + dir.dc;
+
+                    if (nr2 > 0 && nr2 < rows - 1 && nc2 > 0 && nc2 < cols - 1 && maze[nr2][nc2] === 1) {
+                        const nr1 = r + dir.dr / 2;
+                        const nc1 = c + dir.dc / 2;
+                        
+                        maze[nr1][nc1] = 0; 
+                        carvePath(nr2, nc2);
+                    }
+                }
+            }
+
+            carvePath(startPos.row, startPos.col);
+
+            maze[startPos.row][startPos.col] = 0;
+            maze[endPos.row][endPos.col] = 0;
+
+            renderMaze();
+            document.getElementById(STATUS_ID).textContent = "Laberinto 255x255 generado. Seleccione la lógica y resuelva.";
+            document.getElementById(STEP_COUNTER_ID).textContent = "0"; 
+            solving = false;
+        }
+
+        /**
+         * Dibuja el laberinto en el DOM.
+         */
+        function renderMaze() {
+            const gridElement = document.getElementById(GRID_ID);
+            gridElement.style.gridTemplateColumns = `repeat(${COLS}, 1fr)`;
+            gridElement.innerHTML = '';
+
+            for (let r = 0; r < ROWS; r++) {
+                for (let c = 0; c < COLS; c++) {
+                    const cell = document.createElement('div');
+                    cell.className = 'cell';
+                    cell.id = `cell-${r}-${c}`;
+                    
+                    if (maze[r][c] === 1) {
+                        cell.classList.add('wall');
+                    } else {
+                        cell.classList.add('path');
+                    }
+
+                    if (r === startPos.row && c === startPos.col) {
+                        cell.classList.add('start');
+                        // Texto eliminado para optimización visual
+                    }
+                    if (r === endPos.row && c === endPos.col) {
+                        cell.classList.add('end');
+                        // Texto eliminado para optimización visual
+                    }
+                    gridElement.appendChild(cell);
+                }
+            }
+        }
+
+        // --- Algoritmo de Solución (OPTIMIZADO) ---
+
+        /**
+         * Resuelve el laberinto (sin animación en tiempo real).
+         */
+        async function solveMaze() {
+            if (solving) return;
+            solving = true;
+            
+            const logicName = currentLogic === 'distance' ? 'Distancia' : 'Apertura';
+            document.getElementById(STATUS_ID).textContent = `Agente MAYBE (${logicName}) resolviendo...`;
+            document.getElementById(STEP_COUNTER_ID).textContent = "0";
+            
+            // Limpiar visualización de soluciones previas (solo la final)
+            document.querySelectorAll('.solution-path').forEach(el => {
+                el.classList.remove('solution-path');
+            });
+
+            // Usamos una copia de la cuadrícula para marcar visitados
+            const grid = JSON.parse(JSON.stringify(maze)); 
+            let pathStack = [startPos]; 
+            let success = false;
+            let stepCount = 0; 
+            
+            const startTime = performance.now(); // Inicio de medición de tiempo
+
+            while (pathStack.length > 0) {
+                stepCount++; 
+                // Actualizamos el contador cada 1000 pasos para evitar sobrecarga del DOM
+                if (stepCount % 1000 === 0) {
+                    document.getElementById(STEP_COUNTER_ID).textContent = stepCount;
+                }
+                
+                const current = pathStack[pathStack.length - 1];
+                
+                // 1. Condición de Victoria
+                if (current.row === endPos.row && current.col === endPos.col) {
+                    success = true;
+                    break;
+                }
+
+                // Marcar como visitado
+                grid[current.row][current.col] = -1;
+
+                // 2. Determinar posibles movimientos (Solo cardinales)
+                const directions = [
+                    { dr: 0, dc: 1 }, { dr: 0, dc: -1 }, 
+                    { dr: 1, dc: 0 }, { dr: -1, dc: 0 } 
+                ];
+
+                let possibleMoves = [];
+                for (const dir of directions) {
+                    const nextRow = current.row + dir.dr;
+                    const nextCol = current.col + dir.dc;
+                    
+                    if (nextRow >= 0 && nextRow < ROWS && nextCol >= 0 && nextCol < COLS && grid[nextRow][nextCol] === 0) {
+                        possibleMoves.push({ row: nextRow, col: nextCol });
+                    }
+                }
+
+                // 3. Lógica MAYBE (Cálculo)
+                if (possibleMoves.length > 0) {
+                    
+                    let ratedMoves = possibleMoves.map(move => {
+                        const distance = manhattanDistance(move, endPos);
+                        const openPaths = calculateOpenPaths(move.row, move.col, grid); 
+                        
+                        let score;
+                        let tieBreakerScore;
+
+                        if (currentLogic === 'distance') {
+                            // V2: Prioriza la Distancia (A*)
+                            score = -distance; 
+                            tieBreakerScore = openPaths;
+                        } else {
+                            // V1: Prioriza la Apertura (DFS Greedy)
+                            score = openPaths; 
+                            tieBreakerScore = -distance;
+                        }
+
+                        return { ...move, score, tieBreakerScore };
+                    });
+
+                    // Ordenar por score principal y luego tieBreakerScore
+                    ratedMoves.sort((a, b) => {
+                        if (b.score !== a.score) return b.score - a.score;
+                        return b.tieBreakerScore - a.tieBreakerScore;
+                    });
+                    
+                    const bestMove = ratedMoves[0];
+
+                    // "DO" el mejor "MAYBE"
+                    pathStack.push(bestMove);
+
+                } else {
+                    // "DO NOT": Retroceder
+                    pathStack.pop(); 
+                }
+            }
+
+            const endTime = performance.now(); // Fin de medición de tiempo
+
+            // 4. Marcado final del camino (actualización masiva del DOM)
+            document.getElementById(STEP_COUNTER_ID).textContent = stepCount;
+            
+            if (success) {
+                const totalTime = (endTime - startTime).toFixed(2);
+                document.getElementById(STATUS_ID).textContent = `¡Éxito! Encontró la salida en ${stepCount} pasos usando la lógica de ${logicName}. Tiempo: ${totalTime}ms.`;
+            } else {
+                document.getElementById(STATUS_ID).textContent = `Fracaso: El Agente MAYBE no pudo encontrar un camino. Pasos: ${stepCount}.`;
+            }
+            
+            // Marcar todas las celdas del camino final
+            pathStack.forEach(pos => {
+                const cell = document.getElementById(`cell-${pos.row}-${pos.col}`);
+                if (cell && !cell.classList.contains('start') && !cell.classList.contains('end')) {
+                    cell.classList.add('solution-path');
+                }
+            });
+            solving = false;
+        }
+
+        // --- Inicializar en Carga ---
+        window.onload = () => {
+            generateMaze(ROWS, COLS);
+        };
+    </script>
+</body>
+</html>
